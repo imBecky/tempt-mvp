@@ -14,26 +14,25 @@ matplotlib.use('TkAgg')
 CUDA0 = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # ===================== 读取各模态数据为tensor =======================
-HSI_file_path = os.path.join(args.data_dir, 'HSI.mat')
+# HSI_file_path = os.path.join(args.data_dir, 'HSI.mat')
 LiDAR_file_path = os.path.join(args.data_dir, 'LiDAR.mat')
-RGB_file_path = './rgb_down.mat'
-with h5py.File(HSI_file_path, 'r') as file:
-    key = list(file.keys())
-    data = file[key[0]][()]
-    data = data.T
-    HSI_tensor = torch.from_numpy(np.transpose(data, (2, 0, 1))).to(CUDA0)
+# RGB_file_path = './rgb_down.mat'
+# with h5py.File(HSI_file_path, 'r') as file:
+#     key = list(file.keys())
+#     data = file[key[0]][()]
+#     data = data.T
+#     HSI_tensor = torch.from_numpy(np.transpose(data, (2, 0, 1))).to(CUDA0)
 with h5py.File(LiDAR_file_path, 'r') as file:
     key = list(file.keys())
     LiDAR_np = file[key[0]][()]
     LiDAR_np = LiDAR_np.T
-    LiDAR_tensor = torch.from_numpy(data).unsqueeze(0).to(CUDA0)
-
-RGB_np = sio.loadmat(RGB_file_path)['rgb_down'].transpose(2, 0, 1)
-RGB_tensor = torch.from_numpy(RGB_np).to(CUDA0)
+    LiDAR_tensor = torch.from_numpy(LiDAR_np).unsqueeze(0).to(CUDA0)
+#
+# RGB_np = sio.loadmat(RGB_file_path)['rgb_down'].transpose(2, 0, 1)
+# RGB_tensor = torch.from_numpy(RGB_np).to(CUDA0)
 
 # ========= 对LiDAR做AP ============
-dsm = LiDAR_np.astype(np.float32)
-dsm = np.where(dsm == -1, np.nan, dsm)
+dsm = LiDAR_np[1:, 1:].astype(np.float32)
 H, W = dsm.shape
 
 # 阈值列表
@@ -54,5 +53,7 @@ for lam in lambdas:
     profile.append(closed)
 
 profile = np.stack(profile, axis=0)   # (21, H, W)
-sio.savemat('lidar_ap.mat', {'lidar_ap': profile})
-print()
+profile = np.insert(profile, 0, -1, axis=1)
+profile = np.insert(profile, 0, -1, axis=2)
+save_dict = {'profile': profile}
+sio.savemat('LiDAR_AP.mat', save_dict)
