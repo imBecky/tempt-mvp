@@ -20,12 +20,9 @@ RGB_file_path = './rgb_down.mat'
 #     data = file[key[0]][()]
 #     data = data.T
 #     HSI_tensor = torch.from_numpy(np.transpose(data, (2, 0, 1))).to(CUDA0)
-LiDAR_np = sio.loadmat(LiDAR_file_path)['profile']
+LiDAR_np = sio.loadmat(LiDAR_file_path)['profile'].transpose(1, 2, 0)
 LiDAR_tensor = torch.from_numpy(LiDAR_np).to(CUDA0)
-RGB_np = sio.loadmat(RGB_file_path)['rgb_down']
-RGB_tensor = torch.from_numpy(RGB_np).to(CUDA0)
+LiDAR_flatten = LiDAR_np.reshape(-1, 21)
 
-RGB_flatten = RGB_np.reshape(-1, 3)
-
-save_dict = {'RGB': RGB_flatten}
-sio.savemat('RGB_full.mat', save_dict)
+save_dict = {'LiDAR': LiDAR_flatten}
+sio.savemat('LiDAR_full.mat', save_dict)
