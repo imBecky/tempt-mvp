@@ -8,6 +8,7 @@ import os
 import matplotlib
 import torch.nn.functional as F
 from einops import rearrange
+from torch.utils.data.dataset import random_split
 import matplotlib.pyplot as plt
 from torchvision.models import resnet50
 
@@ -30,18 +31,18 @@ def load_higher_mat(path):
 
 # RGB_np = sio.loadmat(RGB_path)['data']
 # RGB_tensor = torch.from_numpy(RGB_np).to(CUDA0)
-LiDAR_np = sio.loadmat(LiDAR_path)['profile']
+# LiDAR_np = sio.loadmat(LiDAR_path)['profile']
 # HSI_np = load_higher_mat(HSI_path)
 # HSI_np = np.transpose(HSI_np, (2, 0, 1))
 #
 # Resample LiDAR and HSI data to RGB's dimension
-LiDAR_tensor = torch.from_numpy(LiDAR_np).unsqueeze(0).float().to(CUDA0)
-LiDAR_resampled = F.interpolate(LiDAR_tensor, scale_factor=2, mode='bilinear', align_corners=False)
+# LiDAR_tensor = torch.from_numpy(LiDAR_np).unsqueeze(0).float().to(CUDA0)
+# LiDAR_resampled = F.interpolate(LiDAR_tensor, scale_factor=2, mode='bilinear', align_corners=False)
 
 # HSI_tensor = torch.from_numpy(HSI_np).unsqueeze(0).float().to(CUDA0)
 # HSI_resampled = F.interpolate(HSI_tensor, scale_factor=2, mode='bilinear', align_corners=False)
 #
-LiDAR_resampled_np = LiDAR_resampled.cpu().squeeze(0).detach().numpy()
+# LiDAR_resampled_np = LiDAR_resampled.cpu().squeeze(0).detach().numpy()
 # HSI_resampled_np = HSI_resampled.cpu().squeeze(0).detach().numpy()
 
 
@@ -84,9 +85,9 @@ def to_patches(x: torch.Tensor, patch_size: int = 224):
 
 
 # RGB_patches = to_patches(RGB_tensor.unsqueeze(0), 224).squeeze(0).float()
-resnet50 = resnet50(pretrained=True)
-resnet50.fc = torch.nn.Identity()     # 输出 2048-d 特征
-resnet50 = resnet50.to(CUDA0).eval()
+# resnet50 = resnet50(pretrained=True)
+# resnet50.fc = torch.nn.Identity()     # 输出 2048-d 特征
+# resnet50 = resnet50.to(CUDA0).eval()
 
 # 前向
 # with torch.no_grad():
@@ -94,3 +95,13 @@ resnet50 = resnet50.to(CUDA0).eval()
 #
 # feature_np = features.cpu().numpy()
 # sio.savemat('RGB_full.mat', {'data': feature_np})
+
+
+RGB_full = sio.loadmat('./RGB_full.mat')['data']
+train_size = int(0.7 * RGB_full.shape[0])
+test_size = int(0.3 * RGB_full.shape[0])
+train_np = RGB_full[:train_size, :]
+test_np = RGB_full[train_size:, :]
+sio.savemat('RGB_TrSet.mat', {'data': train_np})
+sio.savemat('RGB_TeSet.mat', {'data': test_np})
+

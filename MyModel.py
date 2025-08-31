@@ -24,6 +24,10 @@ class MyModel(nn.Module):
             nn.Linear(32, 16), nn.Sigmoid(),
             nn.Linear(16, 144), nn.Sigmoid()
         )
+        self.classifier = nn.Sequential(
+            nn.Linear(144, 224), nn.Sigmoid(),
+            nn.Linear(224, 224*224), nn.Sigmoid()
+        )
 
     def forward(self, rgb):
         hidden_rgb = self.rgb_enc(rgb)
