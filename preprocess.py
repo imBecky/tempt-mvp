@@ -89,19 +89,24 @@ def to_patches(x: torch.Tensor, patch_size: int = 224):
 # resnet50.fc = torch.nn.Identity()     # 输出 2048-d 特征
 # resnet50 = resnet50.to(CUDA0).eval()
 
-# 前向
 # with torch.no_grad():
 #     features = resnet50(RGB_patches)      # (567, 2048)
-#
 # feature_np = features.cpu().numpy()
 # sio.savemat('RGB_full.mat', {'data': feature_np})
 
+# RGB_full = sio.loadmat('./RGB_full.mat')['data']
+# train_size = int(0.7 * RGB_full.shape[0])
+# test_size = int(0.3 * RGB_full.shape[0])
+# train_np = RGB_full[:train_size, :]
+# test_np = RGB_full[train_size:, :]
+# sio.savemat('RGB_TrSet.mat', {'data': train_np})
+# sio.savemat('RGB_TeSet.mat', {'data': test_np})
 
-RGB_full = sio.loadmat('./RGB_full.mat')['data']
-train_size = int(0.7 * RGB_full.shape[0])
-test_size = int(0.3 * RGB_full.shape[0])
-train_np = RGB_full[:train_size, :]
-test_np = RGB_full[train_size:, :]
-sio.savemat('RGB_TrSet.mat', {'data': train_np})
-sio.savemat('RGB_TeSet.mat', {'data': test_np})
-
+label_full = sio.loadmat(os.path.join(args.data_dir, 'label.mat'))['data']
+label_patches = to_patches(torch.from_numpy(label_full).unsqueeze(0).unsqueeze(0), 224).squeeze(0)
+label_patches = label_patches.squeeze(1)
+label_train_np = label_patches[:int(0.7*567), :]
+label_test_np = label_patches[int(0.7*567):, :]
+sio.savemat('label_TrSet.mat', {'data': label_train_np})
+sio.savemat('label_TeSet.mat', {'data': label_test_np})
+print()
