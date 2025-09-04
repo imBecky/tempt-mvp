@@ -13,25 +13,20 @@ class MyModel(nn.Module):
     def __init__(self):
         super().__init__()
         self.rgb_enc = nn.Sequential(
-            nn.Linear(144, 16), nn.BatchNorm1d(16), nn.ReLU(inplace=True),
-            nn.Linear(16, 32), nn.BatchNorm1d(32), nn.ReLU(inplace=True),
-            nn.Linear(32, 64), nn.BatchNorm1d(64), nn.ReLU(inplace=True),
-            nn.Linear(64, 128), nn.BatchNorm1d(128), nn.ReLU(inplace=True)
+            nn.Linear(2048, 1024), nn.BatchNorm1d(1024), nn.ReLU(inplace=True),
+            nn.Linear(1024, 512), nn.BatchNorm1d(512), nn.ReLU(inplace=True),
+            nn.Linear(512, 256), nn.BatchNorm1d(256), nn.ReLU(inplace=True),
+            # nn.Linear(64, 128), nn.BatchNorm1d(128), nn.ReLU(inplace=True)
         )
         self.rgb_dec = nn.Sequential(
-            nn.Linear(128, 64), nn.Sigmoid(),
-            nn.Linear(64, 32), nn.Sigmoid(),
-            nn.Linear(32, 16), nn.Sigmoid(),
-            nn.Linear(16, 144), nn.Sigmoid()
-        )
-        self.classifier = nn.Sequential(
-            nn.Linear(144, 224), nn.Sigmoid(),
-            nn.Linear(224, 224*224), nn.Sigmoid()
+            nn.Linear(256, 512), nn.ReLU(inplace=True),
+            nn.Linear(512, 224*224*21)
         )
 
     def forward(self, rgb):
-        hidden_rgb = self.rgb_enc(rgb)
-        output = self.rgb_dec(hidden_rgb)
+        h1 = self.rgb_enc(rgb)
+        h2 = self.rgb_dec(h1)
+        output = h2.view(h2.size(0), 21, 224, 224)
         return output
 
 
@@ -39,8 +34,8 @@ def train(rgb_train, rgb_test, y_train, y_test, args,
           lr_base=1e-3, epochs=150, beta_reg=1e-3, batch_size=64, print_cost=True):
     rgb_train = torch.tensor(rgb_train).to(CUDA0)
     rgb_test = torch.tensor(rgb_test).to(CUDA0)
-    y_train = torch.tensor(y_train).to(CUDA0)
-    y_test = torch.tensor(y_test).to(CUDA0)
+    y_train = torch.tensor(y_train).long().to(CUDA0)
+    y_test = torch.tensor(y_test).long().to(CUDA0)
 
     model = MyModel().to(CUDA0)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr_base)
@@ -67,10 +62,10 @@ def train(rgb_train, rgb_test, y_train, y_test, args,
 
         for (mb_x, mb_y) in minibatches:
             mb_x = torch.tensor(mb_x, dtype=torch.float32).to(CUDA0)
-            mb_y = torch.tensor(mb_y, dtype=torch.float32).to(CUDA0)
+            mb_y = torch.tensor(mb_y, dtype=torch.long).to(CUDA0)
 
             optimizer.zero_grad()
-            rgb_train_output = model(mb_x)      # 处理一下，X经过model后要和(224, 224)对应
+            rgb_train_output = model(mb_x)
 
             ce_loss = loss_fn(rgb_train_output, mb_y)
             l2 = utils.l2_loss(model)
@@ -81,7 +76,7 @@ def train(rgb_train, rgb_test, y_train, y_test, args,
 
             epoch_loss += cost.item() / num_batches
             preds = torch.argmax(rgb_train_output, dim=1)
-            epoch_acc += (preds == mb_y_cls).float().mean().item() / num_batches
+            epoch_acc += (preds == mb_y).float().mean().item() / num_batches
 
         scheduler.step()
 

@@ -107,8 +107,7 @@ label_patches = to_patches(torch.from_numpy(label_full).unsqueeze(0).unsqueeze(0
 label_patches = label_patches.squeeze(1)
 label_train_np = label_patches[:int(0.7*567), :]
 label_test_np = label_patches[int(0.7*567):, :]
-print(np.unique(label_test_np))
-print(np.unique(label_train_np))
-# sio.savemat('label_TrSet.mat', {'data': label_train_np})
-# sio.savemat('label_TeSet.mat', {'data': label_test_np})
+
+sio.savemat('label_TrSet.mat', {'data': label_train_np})
+sio.savemat('label_TeSet.mat', {'data': label_test_np})
 
