@@ -2,6 +2,8 @@ import torch
 import random
 import os
 import numpy as np
+import matplotlib
+import matplotlib.pyplot as plt
 
 
 def set_seed(seed):
@@ -39,3 +41,11 @@ def random_mini_batches(x, y, batch_size, seed):
 def convert_to_one_hot(Y, C):
     Y = np.eye(C)[Y.reshape(-1)].T
     return Y
+
+
+def plot_label(y):
+    plt.figure(figsize=(12, 9))  # 按需要调大或调小
+    im = plt.imshow(y, cmap='tab20', vmin=0, vmax=25)  # tab20 能区分 20+ 类
+    plt.colorbar(im, ticks=np.unique(y))  # 右侧色条
+    plt.title('Label map')
+    plt.show()

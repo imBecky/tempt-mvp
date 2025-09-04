@@ -35,7 +35,7 @@ class MyModel(nn.Module):
         return output
 
 
-def train(rgb_train, rgb_test, y_train, y_test,
+def train(rgb_train, rgb_test, y_train, y_test, args,
           lr_base=1e-3, epochs=150, beta_reg=1e-3, batch_size=64, print_cost=True):
     rgb_train = torch.tensor(rgb_train).to(CUDA0)
     rgb_test = torch.tensor(rgb_test).to(CUDA0)
@@ -46,9 +46,6 @@ def train(rgb_train, rgb_test, y_train, y_test,
     optimizer = torch.optim.Adam(model.parameters(), lr=lr_base)
     scheduler = StepLR(optimizer, step_size=30, gamma=0.5)
     loss_fn = nn.CrossEntropyLoss()
-
-    y_train_cls = torch.argmax(y_train, dim=1)  # one_hot → cls idx
-    y_test_cls = torch.argmax(y_test, dim=1)
 
     # recording
     costs, costs_dev = [], []  # what's the meaning of costs_dev
@@ -65,18 +62,17 @@ def train(rgb_train, rgb_test, y_train, y_test,
         seed += 1  # make sure every epoch is shuffled
         minibatches = utils.random_mini_batches(rgb_train.cpu().numpy(),
                                                 y_train.cpu().numpy(),
-                                                batch_size, seed)
+                                                args.batch_size, seed)
         num_batches = len(minibatches)
 
         for (mb_x, mb_y) in minibatches:
             mb_x = torch.tensor(mb_x, dtype=torch.float32).to(CUDA0)
             mb_y = torch.tensor(mb_y, dtype=torch.float32).to(CUDA0)
-            mb_y_cls = torch.argmax(mb_y, dim=1)       # one_hot
 
             optimizer.zero_grad()
-            rgb_train_output = model(mb_x)
+            rgb_train_output = model(mb_x)      # 处理一下，X经过model后要和(224, 224)对应
 
-            ce_loss = loss_fn(rgb_train_output, mb_y_cls)
+            ce_loss = loss_fn(rgb_train_output, mb_y)
             l2 = utils.l2_loss(model)
             cost = ce_loss + beta_reg * l2
 
@@ -98,7 +94,7 @@ def train(rgb_train, rgb_test, y_train, y_test,
             cost_dev = ce_dev + beta_reg * l2_dev
 
             preds_dev = torch.argmax(rgb_test_output, dim=1)
-            acc_dev = (preds_dev == y_test_cls).float().mean().item()
+            acc_dev = (preds_dev == y_test).float().mean().item()
 
         if print_cost and epoch % 50 == 0:
             print(f"epoch {epoch}: "
