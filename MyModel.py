@@ -31,7 +31,7 @@ class MyModel(nn.Module):
 
 
 def train(rgb_train, rgb_test, y_train, y_test, args,
-          lr_base=1e-3, epochs=150, beta_reg=1e-3, batch_size=64, print_cost=True):
+          lr_base=1e-3, beta_reg=1e-3, print_cost=True):
     rgb_train = torch.tensor(rgb_train).to(CUDA0)
     rgb_test = torch.tensor(rgb_test).to(CUDA0)
     y_train = torch.tensor(y_train).long().to(CUDA0)
@@ -50,7 +50,7 @@ def train(rgb_train, rgb_test, y_train, y_test, args,
     m = rgb_train.size(0)
 
     # train
-    for epoch in range(epochs + 1):
+    for epoch in range(args.epoch + 1):
         model.train()
         epoch_loss = 0.0
         epoch_acc = 0.0

@@ -16,9 +16,9 @@ matplotlib.use('TkAgg')
 
 CUDA0 = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-RGB_path = os.path.join(args.data_dir, 'RGB.mat')
-LiDAR_path = './LiDAR_AP.mat'
-HSI_path = os.path.join(args.data_dir, 'HSI.mat')
+# RGB_path = os.path.join(args.data_dir, 'RGB.mat')
+# LiDAR_path = os.path.join(args.data_dir, 'LiDAR.mat')
+# HSI_path = os.path.join(args.data_dir, 'HSI.mat')
 
 
 def load_higher_mat(path):
@@ -31,22 +31,22 @@ def load_higher_mat(path):
 
 # RGB_np = sio.loadmat(RGB_path)['data']
 # RGB_tensor = torch.from_numpy(RGB_np).to(CUDA0)
-# LiDAR_np = sio.loadmat(LiDAR_path)['profile']
+# LiDAR_np = sio.loadmat('./LiDAR_AP.mat')['profile'][:, 1:, 1:]
 # HSI_np = load_higher_mat(HSI_path)
 # HSI_np = np.transpose(HSI_np, (2, 0, 1))
 #
 # Resample LiDAR and HSI data to RGB's dimension
 # LiDAR_tensor = torch.from_numpy(LiDAR_np).unsqueeze(0).float().to(CUDA0)
 # LiDAR_resampled = F.interpolate(LiDAR_tensor, scale_factor=2, mode='bilinear', align_corners=False)
-
 # HSI_tensor = torch.from_numpy(HSI_np).unsqueeze(0).float().to(CUDA0)
 # HSI_resampled = F.interpolate(HSI_tensor, scale_factor=2, mode='bilinear', align_corners=False)
 #
 # LiDAR_resampled_np = LiDAR_resampled.cpu().squeeze(0).detach().numpy()
+
 # HSI_resampled_np = HSI_resampled.cpu().squeeze(0).detach().numpy()
 
 
-# sio.savemat("LiDAR_interpolated.mat", {"data": LiDAR_resampled_np})
+# sio.savemat("LiDAR_full.mat", {"data": LiDAR_resampled_np})
 # HSI就不保存了，太大了，后续做了encode之后再保存吧
 
 
@@ -102,12 +102,22 @@ def to_patches(x: torch.Tensor, patch_size: int = 224):
 # sio.savemat('RGB_TrSet.mat', {'data': train_np})
 # sio.savemat('RGB_TeSet.mat', {'data': test_np})
 
-label_full = sio.loadmat(os.path.join(args.data_dir, 'label.mat'))['data']
-label_patches = to_patches(torch.from_numpy(label_full).unsqueeze(0).unsqueeze(0), 224).squeeze(0)
-label_patches = label_patches.squeeze(1)
-label_train_np = label_patches[:int(0.7*567), :]
-label_test_np = label_patches[int(0.7*567):, :]
+# label_full = sio.loadmat(os.path.join(args.data_dir, 'label.mat'))['data']
+# label_patches = to_patches(torch.from_numpy(label_full).unsqueeze(0).unsqueeze(0), 224).squeeze(0)
+# label_patches = label_patches.squeeze(1)
+# label_train_np = label_patches[:int(0.7*567), :]
+# label_test_np = label_patches[int(0.7*567):, :]
+#
+# sio.savemat('label_TrSet.mat', {'data': label_train_np})
+# sio.savemat('label_TeSet.mat', {'data': label_test_np})
+RGB_full = sio.loadmat(os.path.join(args.data_dir, 'RGB.mat'))['data'][:, 2:, 2:]
+LiDAR_full = sio.loadmat('./LiDAR_full.mat')['data']
+HSI_full = load_higher_mat(os.path.join(args.data_dir, 'HSI.mat'))
+HSI_full = np.transpose(HSI_full, [2, 0, 1])[:, 1:, 1:]
+label = sio.loadmat(os.path.join(args.data_dir, 'label.mat'))['data'][2:, 2:]
 
-sio.savemat('label_TrSet.mat', {'data': label_train_np})
-sio.savemat('label_TeSet.mat', {'data': label_test_np})
-
+sio.savemat('RGB.mat', {'data': RGB_full})
+sio.savemat('LiDAR.mat', {'data': LiDAR_full})
+sio.savemat('HSI.mat', {'data': HSI_full})
+sio.savemat('label.mat', {'data': label})
+print()
