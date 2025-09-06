@@ -1,4 +1,7 @@
 *.mat
+*.img
+*.hdr
+*.img.enp
 .git
 .idea
 __pycache__
