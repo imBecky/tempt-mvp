@@ -128,14 +128,6 @@ resnet50 = resnet50(pretrained=True)
 resnet50.fc = torch.nn.Identity()     # 输出 2048-d 特征
 resnet50 = resnet50.to(CUDA0).eval()
 
-# RGB_full = sio.loadmat('./RGB_full.mat')['data']
-# train_size = int(0.7 * RGB_full.shape[0])
-# test_size = int(0.3 * RGB_full.shape[0])
-# train_np = RGB_full[:train_size, :]
-# test_np = RGB_full[train_size:, :]
-# sio.savemat('RGB_TrSet.mat', {'data': train_np})
-# sio.savemat('RGB_TeSet.mat', {'data': test_np})
-
 # label_full = sio.loadmat(os.path.join(args.data_dir, 'label.mat'))['data']
 # label_patches = to_patches(torch.from_numpy(label_full).unsqueeze(0).unsqueeze(0), 224).squeeze(0)
 # label_patches = label_patches.squeeze(1)
@@ -198,4 +190,28 @@ resnet50 = resnet50.to(CUDA0).eval()
 # sio.savemat('LiDAR.mat', {'data': Encoded_LiDAR})
 # Encode_HSI(HSI_np)
 
-
+"""
+切割Train Test数据集
+"""
+# RGB_full = sio.loadmat('./RGB.mat')['data']
+# LiDAR_full = sio.loadmat('./LiDAR.mat')['data']
+# HSI_full = sio.loadmat('./HSI.mat')['data'].transpose([1, 2, 0])
+#
+# train_size = int(0.7 * RGB_full.shape[0])
+# test_size = int(0.3 * RGB_full.shape[0])
+# # RGB
+# train_np = RGB_full[:train_size, :]
+# test_np = RGB_full[train_size:, :]
+# sio.savemat('RGB_TrSet.mat', {'data': train_np})
+# sio.savemat('RGB_TeSet.mat', {'data': test_np})
+# # LiDAR
+# train_np = LiDAR_full[:train_size, :]
+# test_np = LiDAR_full[train_size:, :]
+# sio.savemat('LiDAR_TrSet.mat', {'data': train_np})
+# sio.savemat('LiDAR_TeSet.mat', {'data': test_np})
+# # HSI
+# train_np = HSI_full[:train_size, :]
+# test_np = HSI_full[train_size:, :]
+# sio.savemat('HSI_TrSet.mat', {'data': train_np})
+# sio.savemat('HSI_TeSet.mat', {'data': test_np})
+# print()
