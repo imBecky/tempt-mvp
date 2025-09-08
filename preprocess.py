@@ -73,7 +73,10 @@ def to_patches(x, patch_size: int = 224):
         如果 H 或 W 不能被 patch_size 整除，直接裁剪边缘。
         返回: (B, num_patches, C, patch_size, patch_size)
         """
-    x_tensor = torch.from_numpy(x).to(CUDA0)
+    if torch.is_tensor(x):
+        x_tensor = x
+    else:
+        x_tensor = torch.from_numpy(x).to(CUDA0)
     if x_tensor.ndim == 3:
         x_tensor = x_tensor.unsqueeze(0)
     if x_tensor.ndim != 4:
@@ -128,15 +131,15 @@ resnet50 = resnet50(pretrained=True)
 resnet50.fc = torch.nn.Identity()     # 输出 2048-d 特征
 resnet50 = resnet50.to(CUDA0).eval()
 
-# label_full = sio.loadmat(os.path.join(args.data_dir, 'label.mat'))['data']
-# label_patches = to_patches(torch.from_numpy(label_full).unsqueeze(0).unsqueeze(0), 224).squeeze(0)
-# label_patches = label_patches.squeeze(1)
-# label_train_np = label_patches[:int(0.7*567), :]
-# label_test_np = label_patches[int(0.7*567):, :]
-#
-# sio.savemat('label_TrSet.mat', {'data': label_train_np})
-# sio.savemat('label_TeSet.mat', {'data': label_test_np})
+label_full = sio.loadmat(os.path.join(args.data_dir, 'label.mat'))['data']
+label_patches = to_patches(torch.from_numpy(label_full).unsqueeze(0).unsqueeze(0), 224).squeeze(0)
+label_patches = label_patches.squeeze(1)
+label_train_np = label_patches[:int(0.7*567), :]
+label_test_np = label_patches[int(0.7*567):, :]
 
+sio.savemat('label_TrSet.mat', {'data': label_train_np})
+sio.savemat('label_TeSet.mat', {'data': label_test_np})
+print()
 # RGB_full = sio.loadmat(os.path.join(args.data_dir, 'RGB.mat'))['data'][:, 2:, 2:]
 # LiDAR_full = sio.loadmat('./LiDAR_full.mat')['data']
 # HSI_full = load_higher_mat(os.path.join(args.data_dir, 'HSI.mat'))
@@ -195,10 +198,11 @@ resnet50 = resnet50.to(CUDA0).eval()
 """
 # RGB_full = sio.loadmat('./RGB.mat')['data']
 # LiDAR_full = sio.loadmat('./LiDAR.mat')['data']
-# HSI_full = sio.loadmat('./HSI.mat')['data'].transpose([1, 2, 0])
+HSI_full = sio.loadmat('./HSI.mat')['data'].transpose(1, 2, 0)
+# label_full = sio.loadmat('./label.mat')['data']
 #
-# train_size = int(0.7 * RGB_full.shape[0])
-# test_size = int(0.3 * RGB_full.shape[0])
+train_size = int(0.7 * HSI_full.shape[0])
+test_size = int(0.3 * HSI_full.shape[0])
 # # RGB
 # train_np = RGB_full[:train_size, :]
 # test_np = RGB_full[train_size:, :]
@@ -210,8 +214,10 @@ resnet50 = resnet50.to(CUDA0).eval()
 # sio.savemat('LiDAR_TrSet.mat', {'data': train_np})
 # sio.savemat('LiDAR_TeSet.mat', {'data': test_np})
 # # HSI
-# train_np = HSI_full[:train_size, :]
-# test_np = HSI_full[train_size:, :]
-# sio.savemat('HSI_TrSet.mat', {'data': train_np})
-# sio.savemat('HSI_TeSet.mat', {'data': test_np})
-# print()
+train_np = HSI_full[:train_size, :, :]
+test_np = HSI_full[train_size:, :, :]
+sio.savemat('HSI_TrSet.mat', {'data': train_np})
+sio.savemat('HSI_TeSet.mat', {'data': test_np})
+# label
+
+print()
