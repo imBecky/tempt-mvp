@@ -4,10 +4,30 @@ from torch.optim.lr_scheduler import StepLR
 import matplotlib
 import matplotlib.pyplot as plt
 import torch_utils as utils
-matplotlib.use('TkAgg')
-
+import time
+from datetime import datetime
 CUDA0 = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+
+def log_args_and_time(args, epoch, train_loss, val_loss, train_acc, val_acc,
+                      log_file='log.txt'):
+    """
+    带明文标签的追加日志，方便人眼阅读。
+    """
+    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    record = (f"{timestamp} | "
+              f"trial_run:{args.trial_run} | "
+              f"lr:{args.lr} | "
+              f"batch_size:{args.batch_size} | "
+              f"seed:{args.seed} | "
+              f"epoch:{epoch} | "
+              f"train_loss:{train_loss:.4f} | "
+              f"val_loss:{val_loss:.4f} | "
+              f"train_acc:{train_acc:.4f} | "
+              f"val_acc:{val_acc:.4f}\n")
+
+    with open(log_file, 'a', encoding='utf-8') as f:
+        f.write(record)
 
 class MyModel(nn.Module):
     def __init__(self):
@@ -91,10 +111,14 @@ def train(rgb_train, rgb_test, y_train, y_test, args,
             preds_dev = torch.argmax(rgb_test_output, dim=1)
             acc_dev = (preds_dev == y_test).float().mean().item()
 
-        if print_cost and epoch % 50 == 0:
-            print(f"epoch {epoch}: "
-                  f"Train_loss: {epoch_loss:.4f}, Val_loss: {cost_dev.item():.4f}, "
-                  f"Train_acc: {epoch_acc:.4f}, Val_acc: {acc_dev:.4f}")
+        if print_cost:
+            print(f"epoch {epoch:3d}: "
+                  f"Train_loss={epoch_loss:.4f}, Val_loss={cost_dev.item():.4f}, "
+                  f"Train_acc={epoch_acc:.4f}, Val_acc={acc_dev:.4f}  |  "
+                  f"lr={args.lr}  batch={args.batch_size}  seed={args.seed}")
+            # 同时写 txt 日志
+            log_args_and_time(args, epoch, epoch_loss, cost_dev.item(),
+                              epoch_acc, acc_dev)
 
         if epoch % 5 == 0:
             costs.append(epoch_loss)
@@ -103,19 +127,19 @@ def train(rgb_train, rgb_test, y_train, y_test, args,
             val_acc.append(acc_dev)
 
         # ---------- 画图 ----------
-    plt.plot(costs, label='train')
-    plt.plot(costs_dev, label='val')
-    plt.ylabel('cost')
-    plt.xlabel('epoch (/5)')
-    plt.legend()
-    plt.show()
+#     plt.plot(costs, label='train')
+#     plt.plot(costs_dev, label='val')
+#     plt.ylabel('cost')
+#     plt.xlabel('epoch (/5)')
+#     plt.legend()
+#     plt.show()
 
-    plt.plot(train_acc, label='train')
-    plt.plot(val_acc, label='val')
-    plt.ylabel('accuracy')
-    plt.xlabel('epoch (/5)')
-    plt.legend()
-    plt.show()
+#     plt.plot(train_acc, label='train')
+#     plt.plot(val_acc, label='val')
+#     plt.ylabel('accuracy')
+#     plt.xlabel('epoch (/5)')
+#     plt.legend()
+#     plt.show()
 
     # ---------- 返回 ----------
     # 提取参数到 dict（与 TF 版接口一致）
