@@ -5,19 +5,18 @@ import matplotlib
 import matplotlib.pyplot as plt
 import torch_utils as utils
 
-matplotlib.use('TkAgg')
-
 CUDA0 = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+PYTORCH_CUDA_ALLOC_CONF=expandable_segments=True
 
 
 class GroupEncoder(nn.Module):
     def __init__(self):
         super().__init__()
         self.enc = nn.Sequential(
-            nn.Conv1d(2048, 1024, 1), nn.BatchNorm1d(1024), nn.ReLU(inplace=True),
-            nn.Conv1d(1024, 512, 1), nn.BatchNorm1d(512), nn.ReLU(inplace=True),
-            nn.Conv1d(512, 256, 1), nn.BatchNorm1d(256), nn.ReLU(inplace=True),
-            nn.Conv1d(256, 64, 1), nn.ReLU(inplace=True)
+            nn.Conv1d(2048, 512, 1), nn.BatchNorm1d(512), nn.ReLU(inplace=True),
+            # nn.Conv1d(1024, 512, 1), nn.BatchNorm1d(512), nn.ReLU(inplace=True),
+            nn.Conv1d(512, 32, 1), nn.BatchNorm1d(32), nn.ReLU(inplace=True),
+            # nn.Conv1d(256, 64, 1), nn.ReLU(inplace=True)
         )
 
     def forward(self, HSI):
@@ -29,8 +28,8 @@ class BandFusion(nn.Module):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fuse = nn.Sequential(
-            nn.Conv1d(64, 64, 3, padding=1, groups=64), nn.BatchNorm1d(64), nn.ReLU(),
-            nn.Conv1d(64, 64, 1)
+            nn.Conv1d(32, 32, 3, padding=1, groups=32), nn.BatchNorm1d(32), nn.ReLU(),
+            nn.Conv1d(32, 32, 1)
         )
 
     def forward(self, z):
@@ -45,7 +44,7 @@ class SegmentModel(nn.Module):
         self.band_fuse = BandFusion()
         self.seg_head = nn.Sequential(
             nn.Flatten(),
-            nn.Linear(640, 1024), nn.ReLU(),
+            nn.Linear(320, 1024), nn.ReLU(),
             nn.Linear(1024, 224 * 224 * 21)  # 与输入图像同分辨率
         )
 
@@ -80,6 +79,7 @@ def train_hsi(HSI_train, HSI_test, y_train, y_test, args,
     # train
     for epoch in range(args.epoch + 1):
         model.train()
+        torch.cuda.memory_summary()
         epoch_loss = 0.0
         epoch_acc = 0.0
         seed += 1  # make sure every epoch is shuffled
@@ -119,7 +119,7 @@ def train_hsi(HSI_train, HSI_test, y_train, y_test, args,
             preds_dev = torch.argmax(rgb_test_output, dim=1)
             acc_dev = (preds_dev == y_test).float().mean().item()
 
-        if print_cost and epoch % 50 == 0:
+        if print_cost:
             print(f"epoch {epoch}: "
                   f"Train_loss: {epoch_loss:.4f}, Val_loss: {cost_dev.item():.4f}, "
                   f"Train_acc: {epoch_acc:.4f}, Val_acc: {acc_dev:.4f}")
@@ -131,19 +131,19 @@ def train_hsi(HSI_train, HSI_test, y_train, y_test, args,
             val_acc.append(acc_dev)
 
         # ---------- 画图 ----------
-    plt.plot(costs, label='train')
-    plt.plot(costs_dev, label='val')
-    plt.ylabel('cost')
-    plt.xlabel('epoch (/5)')
-    plt.legend()
-    plt.show()
-
-    plt.plot(train_acc, label='train')
-    plt.plot(val_acc, label='val')
-    plt.ylabel('accuracy')
-    plt.xlabel('epoch (/5)')
-    plt.legend()
-    plt.show()
+    # plt.plot(costs, label='train')
+    # plt.plot(costs_dev, label='val')
+    # plt.ylabel('cost')
+    # plt.xlabel('epoch (/5)')
+    # plt.legend()
+    # plt.show()
+    #
+    # plt.plot(train_acc, label='train')
+    # plt.plot(val_acc, label='val')
+    # plt.ylabel('accuracy')
+    # plt.xlabel('epoch (/5)')
+    # plt.legend()
+    # plt.show()
 
     # ---------- 返回 ----------
     # 提取参数到 dict（与 TF 版接口一致）
