@@ -58,14 +58,14 @@ class SegmentModel(nn.Module):
 
 
 def train_hsi(HSI_train, HSI_test, y_train, y_test, args,
-              lr_base=1e-3, beta_reg=1e-3, print_cost=True):
-    HSI_train = torch.tensor(HSI_train).to(CUDA0)
-    HSI_test = torch.tensor(HSI_test).to(CUDA0)
-    y_train = torch.tensor(y_train).long().to(CUDA0)
-    y_test = torch.tensor(y_test).long().to(CUDA0)
+              beta_reg=1e-3, print_cost=True):
+    HSI_train = torch.tensor(HSI_train)
+    HSI_test = torch.tensor(HSI_test)
+    y_train = torch.tensor(y_train).long()
+    y_test = torch.tensor(y_test).long()
 
     model = SegmentModel().to(CUDA0)
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr_base)
+    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     scheduler = StepLR(optimizer, step_size=30, gamma=0.5)
     loss_fn = nn.CrossEntropyLoss()
 

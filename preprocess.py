@@ -116,7 +116,7 @@ def Encode_3D(data_np):
 
 
 def Encode_HSI(HSI_np):
-    H, W = HSI_np.shape[1:]
+    C, H, W = HSI_np.shape
     groups = HSI_np.reshape(-1, 3, H, W)    # 把30维光谱的HSI数据按3维为一组分组
     HSI_feature_np = np.zeros((10, 567, 2048), dtype=np.float32)
     for i, spectral in enumerate(groups):
@@ -126,20 +126,20 @@ def Encode_HSI(HSI_np):
     print()
 
 
-# RGB_patches = to_patches(RGB_tensor.unsqueeze(0), 224).squeeze(0).float()
+# # RGB_patches = to_patches(RGB_tensor.unsqueeze(0), 224).squeeze(0).float()
 resnet50 = resnet50(pretrained=True)
 resnet50.fc = torch.nn.Identity()     # 输出 2048-d 特征
 resnet50 = resnet50.to(CUDA0).eval()
-
-label_full = sio.loadmat(os.path.join(args.data_dir, 'label.mat'))['data']
-label_patches = to_patches(torch.from_numpy(label_full).unsqueeze(0).unsqueeze(0), 224).squeeze(0)
-label_patches = label_patches.squeeze(1)
-label_train_np = label_patches[:int(0.7*567), :]
-label_test_np = label_patches[int(0.7*567):, :]
-
-sio.savemat('label_TrSet.mat', {'data': label_train_np})
-sio.savemat('label_TeSet.mat', {'data': label_test_np})
-print()
+#
+# label_full = sio.loadmat(os.path.join(args.data_dir, 'label.mat'))['data']
+# label_patches = to_patches(torch.from_numpy(label_full).unsqueeze(0).unsqueeze(0), 224).squeeze(0)
+# label_patches = label_patches.squeeze(1)
+# label_train_np = label_patches[:int(0.7*567), :]
+# label_test_np = label_patches[int(0.7*567):, :]
+#
+# sio.savemat('label_TrSet.mat', {'data': label_train_np})
+# sio.savemat('label_TeSet.mat', {'data': label_test_np})
+# print()
 # RGB_full = sio.loadmat(os.path.join(args.data_dir, 'RGB.mat'))['data'][:, 2:, 2:]
 # LiDAR_full = sio.loadmat('./LiDAR_full.mat')['data']
 # HSI_full = load_higher_mat(os.path.join(args.data_dir, 'HSI.mat'))
@@ -163,9 +163,13 @@ print()
 """
 转换hsi为ENVI格式hdr，再用ENVI做pca降维
 """
-# hdr_path = './HSI_PCA.HDR'
+# hdr_path = os.path.join(args.data_dir, 'HSI.mat')
+# mat2hdr(hdr_path)
+# print()
+# hdr_path = './HSI_PCA.hdr'
 # cube = hdr2mat(hdr_path)
 # sio.savemat('HSI_PCA.mat', {'data': cube})
+# print()
 
 """
 对三维AP后的LiDAR, HSI做上采样
@@ -176,22 +180,23 @@ print()
 # LiDAR_resampled = F.interpolate(LiDAR_tensor, scale_factor=2, mode='bilinear', align_corners=False)
 # LiDAR_resampled_np = LiDAR_resampled.cpu().squeeze(0).detach().numpy()
 # sio.savemat('LiDAR.mat', {'data': LiDAR_resampled_np})
-# HSI_path = './HSI.mat'
+# HSI_path = './HSI_PCA.mat'
 # HSI = sio.loadmat(HSI_path)['data']
 # HSI_tensor = torch.from_numpy(HSI).unsqueeze(0).float().to(CUDA0)
 # HSI_resampled = F.interpolate(HSI_tensor, scale_factor=2, mode='bilinear', align_corners=False)
 # HSI_resampled_np = HSI_resampled.cpu().squeeze(0).detach().numpy()
-# sio.savemat('HSI.mat', {'data': HSI_resampled_np})
+# sio.savemat('HSI_interpolated.mat', {'data': HSI_resampled_np})
+# print()
 
 """
 编码各模态数据
 """
 # RGB_np = sio.loadmat('./RGB.mat')['data']   # RGB已经被编码好了
 # LiDAR_np = sio.loadmat('./LiDAR_interpolated.mat')['data']
-# HSI_np = sio.loadmat('./HSI.mat')['data']
+HSI_np = sio.loadmat('./HSI_interpolated.mat')['data']
 # Encoded_LiDAR = Encode_3D(LiDAR_np)
 # sio.savemat('LiDAR.mat', {'data': Encoded_LiDAR})
-# Encode_HSI(HSI_np)
+Encode_HSI(HSI_np)
 
 """
 切割Train Test数据集
@@ -199,6 +204,7 @@ print()
 # RGB_full = sio.loadmat('./RGB.mat')['data']
 # LiDAR_full = sio.loadmat('./LiDAR.mat')['data']
 HSI_full = sio.loadmat('./HSI.mat')['data'].transpose(1, 2, 0)
+print()
 # label_full = sio.loadmat('./label.mat')['data']
 #
 train_size = int(0.7 * HSI_full.shape[0])
@@ -213,7 +219,7 @@ test_size = int(0.3 * HSI_full.shape[0])
 # test_np = LiDAR_full[train_size:, :]
 # sio.savemat('LiDAR_TrSet.mat', {'data': train_np})
 # sio.savemat('LiDAR_TeSet.mat', {'data': test_np})
-# # HSI
+# HSI
 train_np = HSI_full[:train_size, :, :]
 test_np = HSI_full[train_size:, :, :]
 sio.savemat('HSI_TrSet.mat', {'data': train_np})
