@@ -17,12 +17,12 @@ def set_seed(seed):
     os.environ['PYTHONHASHSEED'] = str(seed)
 
 
+@torch.no_grad()          # 关键 1：不跟反向图
 def l2_loss(model):
-    """返回模型所有权重矩阵的 L2 范数平方和（不含 bias 和 BN）"""
     l2 = 0.0
     for name, param in model.named_parameters():
         if 'weight' in name:
-            l2 += torch.sum(param**2)
+            l2 += param.pow(2).sum()     # 用原地加法，不生成中间大图
     return l2
 
 

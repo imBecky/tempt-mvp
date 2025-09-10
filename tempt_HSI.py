@@ -1,21 +1,37 @@
 import torch
+import os
 from torch import nn
 from torch.optim.lr_scheduler import StepLR
 import matplotlib
 import matplotlib.pyplot as plt
+from torch.utils.checkpoint import checkpoint
 import torch_utils as utils
+from torch.utils.data import Dataset, DataLoader
+from torch.cuda.amp import autocast, GradScaler
 
 CUDA0 = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-PYTORCH_CUDA_ALLOC_CONF=expandable_segments=True
+
+
+class HSIDataset(Dataset):
+    def __init__(self, hsi, label):
+        self.hsi = hsi          # numpy / torch.Tensor 都行，保持 CPU
+        self.label = label
+
+    def __len__(self):
+        return self.hsi.shape[0]
+
+    def __getitem__(self, idx):
+        return torch.as_tensor(self.hsi[idx],  dtype=torch.float32), \
+               torch.as_tensor(self.label[idx], dtype=torch.long)
 
 
 class GroupEncoder(nn.Module):
     def __init__(self):
         super().__init__()
         self.enc = nn.Sequential(
-            nn.Conv1d(2048, 512, 1), nn.BatchNorm1d(512), nn.ReLU(inplace=True),
+            nn.Conv1d(2048, 512, 1), nn.GroupNorm(8, 512), nn.ReLU(inplace=True),
             # nn.Conv1d(1024, 512, 1), nn.BatchNorm1d(512), nn.ReLU(inplace=True),
-            nn.Conv1d(512, 32, 1), nn.BatchNorm1d(32), nn.ReLU(inplace=True),
+            nn.Conv1d(512, 32, 1), nn.GroupNorm(8, 32), nn.ReLU(inplace=True),
             # nn.Conv1d(256, 64, 1), nn.ReLU(inplace=True)
         )
 
@@ -28,7 +44,7 @@ class BandFusion(nn.Module):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fuse = nn.Sequential(
-            nn.Conv1d(32, 32, 3, padding=1, groups=32), nn.BatchNorm1d(32), nn.ReLU(),
+            nn.Conv1d(32, 32, 3, padding=1, groups=32), nn.GroupNorm(8, 32), nn.ReLU(),
             nn.Conv1d(32, 32, 1)
         )
 
@@ -44,13 +60,13 @@ class SegmentModel(nn.Module):
         self.band_fuse = BandFusion()
         self.seg_head = nn.Sequential(
             nn.Flatten(),
-            nn.Linear(320, 1024), nn.ReLU(),
-            nn.Linear(1024, 224 * 224 * 21)  # 与输入图像同分辨率
+            nn.Linear(320, 512), nn.ReLU(),
+            nn.Linear(512, 224 * 224 * 21)  # 与输入图像同分辨率
         )
 
     def forward(self, HSI):
-        B, mid_dim, _ = HSI.shape
-        h1 = self.group_encoder(HSI)
+        B, _, _ = HSI.shape
+        h1 = checkpoint(self.group_encoder, HSI)
         h2 = self.band_fuse(h1)
         output = self.seg_head(h2)
         output = output.reshape(B, 21, 224, 224)
@@ -59,10 +75,12 @@ class SegmentModel(nn.Module):
 
 def train_hsi(HSI_train, HSI_test, y_train, y_test, args,
               beta_reg=1e-3, print_cost=True):
-    HSI_train = torch.tensor(HSI_train)
-    HSI_test = torch.tensor(HSI_test)
-    y_train = torch.tensor(y_train).long()
-    y_test = torch.tensor(y_test).long()
+    train_set = HSIDataset(HSI_train, y_train)
+    test_set = HSIDataset(HSI_test, y_test)
+    train_loader = DataLoader(train_set, batch_size=args.batch_size,
+                              shuffle=True, drop_last=True, num_workers=0)
+    test_loader = DataLoader(test_set, batch_size=args.batch_size,
+                             shuffle=False, num_workers=0)
 
     model = SegmentModel().to(CUDA0)
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
@@ -70,65 +88,66 @@ def train_hsi(HSI_train, HSI_test, y_train, y_test, args,
     loss_fn = nn.CrossEntropyLoss()
 
     # recording
-    costs, costs_dev = [], []  # what's the meaning of costs_dev
+    costs, costs_val = [], []  # what's the meaning of costs_dev
     train_acc, val_acc = [], []
 
     seed = 1
-    m = HSI_train.size(0)
+    scaler = GradScaler()
 
     # train
     for epoch in range(args.epoch + 1):
         model.train()
-        torch.cuda.memory_summary()
         epoch_loss = 0.0
         epoch_acc = 0.0
+        num_batches = len(train_loader)
         seed += 1  # make sure every epoch is shuffled
-        minibatches = utils.random_mini_batches(HSI_train.cpu().numpy(),
-                                                y_train.cpu().numpy(),
-                                                args.batch_size, seed)
-        num_batches = len(minibatches)
+        # minibatches = utils.random_mini_batches(HSI_train.cpu().numpy(),
+        #                                         y_train.cpu().numpy(),
+        #                                         args.batch_size, seed)
 
-        for (mb_x, mb_y) in minibatches:
-            mb_x = torch.tensor(mb_x, dtype=torch.float32).to(CUDA0)
-            mb_y = torch.tensor(mb_y, dtype=torch.long).to(CUDA0)
+        for (x, y) in train_loader:
+            x, y = x.to(CUDA0, non_blocking=True), y.to(CUDA0, non_blocking=True)
 
             optimizer.zero_grad()
-            train_output = model(mb_x)
+            with autocast():
+                train_output = model(x)
+                ce_loss = loss_fn(train_output, y)
+                l2 = utils.l2_loss(model)
+                cost = ce_loss + beta_reg * torch.as_tensor(l2, device=ce_loss.device)
 
-            ce_loss = loss_fn(train_output, mb_y)
-            l2 = utils.l2_loss(model)
-            cost = ce_loss + beta_reg * l2
-
-            cost.backward()
-            optimizer.step()
+            scaler.scale(cost).backward()
+            scaler.step(optimizer)
+            scaler.update()
 
             epoch_loss += cost.item() / num_batches
             preds = torch.argmax(train_output, dim=1)
-            epoch_acc += (preds == mb_y).float().mean().item() / num_batches
+            epoch_acc += (preds == y).float().mean().item() / num_batches
 
         scheduler.step()
 
         # ---------- 验证 ----------
         model.eval()
         with torch.no_grad():
-            rgb_test_output = model(HSI_test)
-            ce_dev = loss_fn(rgb_test_output, y_test)
-            l2_dev = utils.l2_loss(model)
-            cost_dev = ce_dev + beta_reg * l2_dev
-
-            preds_dev = torch.argmax(rgb_test_output, dim=1)
-            acc_dev = (preds_dev == y_test).float().mean().item()
+            for x, y in test_loader:
+                x, y = x.to(CUDA0), y.to(CUDA0)
+                test_output = model(x)
+                ce = loss_fn(test_output, y)
+                l2 = utils.l2_loss(model)
+                cost = ce + beta_reg*l2
+                preds = torch.argmax(test_output, dim=1)
+                acc_dev = (preds == y).float().mean().item()
 
         if print_cost:
             print(f"epoch {epoch}: "
-                  f"Train_loss: {epoch_loss:.4f}, Val_loss: {cost_dev.item():.4f}, "
+                  f"Train_loss: {epoch_loss:.4f}, Val_loss: {cost.item():.4f}, "
                   f"Train_acc: {epoch_acc:.4f}, Val_acc: {acc_dev:.4f}")
 
         if epoch % 5 == 0:
             costs.append(epoch_loss)
-            costs_dev.append(cost_dev.item())
+            costs_val.append(cost.item())
             train_acc.append(epoch_acc)
             val_acc.append(acc_dev)
+        torch.cuda.empty_cache()
 
         # ---------- 画图 ----------
     # plt.plot(costs, label='train')
