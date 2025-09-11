@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from torch.utils.checkpoint import checkpoint
 import torch_utils as utils
 from torch.utils.data import Dataset, DataLoader
-from torch.cuda.amp import autocast, GradScaler
+from torch.amp import autocast, GradScaler
 
 CUDA0 = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -66,7 +66,7 @@ class SegmentModel(nn.Module):
 
     def forward(self, HSI):
         B, _, _ = HSI.shape
-        h1 = checkpoint(self.group_encoder, HSI)
+        h1 = checkpoint(self.group_encoder, HSI, use_reentrant=False)
         h2 = self.band_fuse(h1)
         output = self.seg_head(h2)
         output = output.reshape(B, 21, 224, 224)
@@ -83,90 +83,57 @@ def train_hsi(HSI_train, HSI_test, y_train, y_test, args,
                              shuffle=False, num_workers=0)
 
     model = SegmentModel().to(CUDA0)
+    print(args.lr)
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     scheduler = StepLR(optimizer, step_size=30, gamma=0.5)
     loss_fn = nn.CrossEntropyLoss()
+    scaler = GradScaler('cuda')
 
-    # recording
-    costs, costs_val = [], []  # what's the meaning of costs_dev
-    train_acc, val_acc = [], []
+    costs, costs_val, train_acc_list, val_acc_list = [], [], [], []
 
-    seed = 1
-    scaler = GradScaler()
-
-    # train
+    # ---------------- 训练 ----------------
     for epoch in range(args.epoch + 1):
         model.train()
-        epoch_loss = 0.0
-        epoch_acc = 0.0
+        epoch_loss = epoch_acc = 0.0
         num_batches = len(train_loader)
-        seed += 1  # make sure every epoch is shuffled
-        # minibatches = utils.random_mini_batches(HSI_train.cpu().numpy(),
-        #                                         y_train.cpu().numpy(),
-        #                                         args.batch_size, seed)
 
-        for (x, y) in train_loader:
-            x, y = x.to(CUDA0, non_blocking=True), y.to(CUDA0, non_blocking=True)
-
+        for x, y in train_loader:
+            x, y = x.to(CUDA0, non_blocking=True), y.to(CUDA0, non_blocking=True, dtype=torch.long)
             optimizer.zero_grad()
-            with autocast():
-                train_output = model(x)
-                ce_loss = loss_fn(train_output, y)
-                l2 = utils.l2_loss(model)
-                cost = ce_loss + beta_reg * torch.as_tensor(l2, device=ce_loss.device)
-
-            scaler.scale(cost).backward()
+            with autocast('cuda'):
+                out = model(x)
+                ce = loss_fn(out, y)
+                l2 = sum(p.pow(2).sum() for name, p in model.named_parameters() if 'weight' in name)
+                loss = ce + beta_reg * l2
+            scaler.scale(loss).backward()
             scaler.step(optimizer)
             scaler.update()
 
-            epoch_loss += cost.item() / num_batches
-            preds = torch.argmax(train_output, dim=1)
+            epoch_loss += loss.item() / num_batches
+            preds = torch.argmax(out, dim=1)
             epoch_acc += (preds == y).float().mean().item() / num_batches
-
         scheduler.step()
 
-        # ---------- 验证 ----------
+        # ---------------- 验证（mini-batch） ----------------
         model.eval()
+        correct = total = 0
         with torch.no_grad():
             for x, y in test_loader:
-                x, y = x.to(CUDA0), y.to(CUDA0)
-                test_output = model(x)
-                ce = loss_fn(test_output, y)
-                l2 = utils.l2_loss(model)
-                cost = ce + beta_reg*l2
-                preds = torch.argmax(test_output, dim=1)
-                acc_dev = (preds == y).float().mean().item()
+                x, y = x.to(CUDA0, non_blocking=True), y.to(CUDA0, non_blocking=True)
+                out = model(x)
+                preds = torch.argmax(out, dim=1)
+                correct += (preds == y).sum().item()
+                total += y.numel()
+        acc_dev = correct / total
 
         if print_cost:
             print(f"epoch {epoch}: "
-                  f"Train_loss: {epoch_loss:.4f}, Val_loss: {cost.item():.4f}, "
-                  f"Train_acc: {epoch_acc:.4f}, Val_acc: {acc_dev:.4f}")
-
-        if epoch % 5 == 0:
-            costs.append(epoch_loss)
-            costs_val.append(cost.item())
-            train_acc.append(epoch_acc)
-            val_acc.append(acc_dev)
+                  f"Train_loss: {epoch_loss:.4f}, Val_loss: N/A, "
+                  f"Train_acc: {epoch_acc:.4f}, Val_acc: {acc_dev:.4f}  (correct={correct}, total={total})")
         torch.cuda.empty_cache()
-
-        # ---------- 画图 ----------
-    # plt.plot(costs, label='train')
-    # plt.plot(costs_dev, label='val')
-    # plt.ylabel('cost')
-    # plt.xlabel('epoch (/5)')
-    # plt.legend()
-    # plt.show()
-    #
-    # plt.plot(train_acc, label='train')
-    # plt.plot(val_acc, label='val')
-    # plt.ylabel('accuracy')
-    # plt.xlabel('epoch (/5)')
-    # plt.legend()
-    # plt.show()
 
     # ---------- 返回 ----------
     # 提取参数到 dict（与 TF 版接口一致）
     state_dict = model.state_dict()
     parameters = {k: v.cpu().numpy() for k, v in state_dict.items()}
-
-    return parameters, val_acc
+    return parameters, val_acc_list  # 统一返回列表
