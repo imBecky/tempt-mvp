@@ -9,22 +9,19 @@ from datetime import datetime
 CUDA0 = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-def log_args_and_time(args, epoch, train_loss, val_loss, train_acc, val_acc,
-                      log_file='log.txt'):
+def log_args_and_time(args, epoch, train_loss, train_acc, val_acc,
+                      val_correct, val_total, log_file='log.txt'):
     """
     带明文标签的追加日志，方便人眼阅读。
     """
     timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     record = (f"{timestamp} | "
-              f"trial_run:{args.trial_run} | "
               f"lr:{args.lr} | "
-              f"batch_size:{args.batch_size} | "
               f"seed:{args.seed} | "
-              f"epoch:{epoch} | "
-              f"train_loss:{train_loss:.4f} | "
-              f"val_loss:{val_loss:.4f} | "
-              f"train_acc:{train_acc:.4f} | "
-              f"val_acc:{val_acc:.4f}\n")
+              f"epoch {epoch}: | "
+              f"Train_loss: {train_loss:.4f}, | "
+              f"Train_acc: {train_acc * 100:.2f}%, Val_acc: {val_acc * 100:.4f}%"
+              f"(correct={val_correct}, total={val_total})\n")
 
     with open(log_file, 'a', encoding='utf-8') as f:
         f.write(record)

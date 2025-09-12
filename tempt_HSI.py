@@ -1,5 +1,6 @@
 import torch
 import os
+from datetime import datetime
 from torch import nn
 from torch.optim.lr_scheduler import StepLR
 import matplotlib
@@ -18,6 +19,20 @@ warnings.filterwarnings(
     message=".*torch.cpu.amp.autocast.*",
     module="torch.*"  # 可限定模块名
 )
+
+
+def log_args_and_time(args, epoch, train_loss, train_acc, val_acc,
+                      val_correct, val_total, log_file='log.txt'):
+    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    record = (f"{timestamp} | "
+              f"lr:{args.lr} | "
+              f"seed:{args.seed} | "
+              f"epoch {epoch}: | "
+              f"Train_loss: {train_loss:.4f}, | "
+              f"Train_acc: {train_acc * 100:.2f}%, Val_acc: {val_acc * 100:.4f}%"
+              f"(correct={val_correct}, total={val_total})\n")
+    with open(log_file, 'a', encoding='utf-8') as f:
+        f.write(record)
 
 
 class HSIDataset(Dataset):
@@ -81,21 +96,19 @@ class SegmentModel(nn.Module):
         return output
 
 
-def train_hsi(HSI_train, HSI_test, y_train, y_test, args,
-              beta_reg=1e-3, print_cost=True):
+def train_hsi(HSI_train, HSI_test, y_train, y_test, args, print_cost=True):
     train_set = HSIDataset(HSI_train, y_train)
     test_set = HSIDataset(HSI_test, y_test)
     train_loader = DataLoader(train_set, batch_size=args.batch_size,
                               shuffle=True, drop_last=True, num_workers=0)
     test_loader = DataLoader(test_set, batch_size=args.batch_size,
                              shuffle=False, num_workers=0)
-
     model = SegmentModel().to(CUDA0)
     print(args.lr)
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     scheduler = StepLR(optimizer, step_size=30, gamma=0.5)
     loss_fn = nn.CrossEntropyLoss()
-    scaler = GradScaler('cuda')
+    # scaler = GradScaler('cuda')  # 自动混合精度训练
 
     costs, costs_val, train_acc_list, val_acc_list = [], [], [], []
 
@@ -108,17 +121,22 @@ def train_hsi(HSI_train, HSI_test, y_train, y_test, args,
         for x, y in train_loader:
             x, y = x.to(CUDA0, non_blocking=True), y.to(CUDA0, non_blocking=True, dtype=torch.long)
             optimizer.zero_grad()
-            with autocast('cuda'):
-                out = model(x).float()
-                ce = loss_fn(out, y)
-                # l2 = sum(p.pow(2).sum() for name, p in model.named_parameters() if 'weight' in name)
-                loss = ce
-            scaler.scale(loss).backward()
-            scaler.step(optimizer)
-            scaler.update()
+            # with autocast('cuda'):  # 自动混合精度训练
+            output = model(x).float()
+            train_loss = loss_fn(output, y)
+            # l2 = sum(p.pow(2).sum() for name, p in model.named_parameters() if 'weight' in name)
+            loss = train_loss
+            # scaler.scale(loss).backward()
+            # scaler.unscale_(optimizer)
+            # torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            # scaler.step(optimizer)
+            # scaler.update()
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            optimizer.step()
 
             epoch_loss += loss.item() / num_batches
-            preds = torch.argmax(out, dim=1)
+            preds = torch.argmax(output, dim=1)
             epoch_acc += (preds == y).float().mean().item() / num_batches
         scheduler.step()
 
@@ -128,18 +146,20 @@ def train_hsi(HSI_train, HSI_test, y_train, y_test, args,
         with torch.no_grad():
             for x, y in test_loader:
                 x, y = x.to(CUDA0, non_blocking=True), y.to(CUDA0, non_blocking=True, dtype=torch.long)
-                with autocast('cuda'):
-                    out = model(x).float()
-                preds = torch.argmax(out, dim=1)
+                # with autocast('cuda'):
+                output = model(x).float()
+                preds = torch.argmax(output, dim=1)
                 val_correct += (preds == y).sum().item()
                 val_total += y.numel()
         val_acc = val_correct / val_total
 
         if print_cost:
-            print(f"epoch {epoch}: "
-                  f"Train_loss: {epoch_loss:.4f}, "
-                  f"Train_acc: {epoch_acc*100:.2f}%, Val_acc: {val_acc*100:.4f}%"
+            print(f"epoch {epoch}: | "
+                  f"Train_loss: {epoch_loss:.4f},  | "
+                  f"Train_acc: {epoch_acc * 100:.2f}%,  |  Val_acc: {val_acc * 100:.4f}%  | "
                   f"  (correct={val_correct}, total={val_total})")
+            log_args_and_time(args, epoch, epoch_loss, epoch_acc, val_acc,
+                              val_correct, val_total)
         torch.cuda.empty_cache()
 
     # ---------- 返回 ----------

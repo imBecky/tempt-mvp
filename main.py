@@ -3,6 +3,7 @@ import numpy as np
 from config import args
 import os
 import scipy.io as sio
+# from train_monitor import train_hsi_monitor as train_hsi
 from tempt_HSI import train_hsi
 from MyModel import train
 import torch_utils as utils
