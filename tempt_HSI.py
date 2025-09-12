@@ -8,20 +8,28 @@ from torch.utils.checkpoint import checkpoint
 import torch_utils as utils
 from torch.utils.data import Dataset, DataLoader
 from torch.amp import autocast, GradScaler
+import warnings
 
 CUDA0 = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+warnings.filterwarnings(
+    "ignore",
+    category=FutureWarning,
+    message=".*torch.cpu.amp.autocast.*",
+    module="torch.*"  # 可限定模块名
+)
 
 
 class HSIDataset(Dataset):
     def __init__(self, hsi, label):
-        self.hsi = hsi          # numpy / torch.Tensor 都行，保持 CPU
+        self.hsi = hsi  # numpy / torch.Tensor 都行，保持 CPU
         self.label = label
 
     def __len__(self):
         return self.hsi.shape[0]
 
     def __getitem__(self, idx):
-        return torch.as_tensor(self.hsi[idx],  dtype=torch.float32), \
+        return torch.as_tensor(self.hsi[idx], dtype=torch.float32), \
                torch.as_tensor(self.label[idx], dtype=torch.long)
 
 
@@ -101,10 +109,10 @@ def train_hsi(HSI_train, HSI_test, y_train, y_test, args,
             x, y = x.to(CUDA0, non_blocking=True), y.to(CUDA0, non_blocking=True, dtype=torch.long)
             optimizer.zero_grad()
             with autocast('cuda'):
-                out = model(x)
+                out = model(x).float()
                 ce = loss_fn(out, y)
-                l2 = sum(p.pow(2).sum() for name, p in model.named_parameters() if 'weight' in name)
-                loss = ce + beta_reg * l2
+                # l2 = sum(p.pow(2).sum() for name, p in model.named_parameters() if 'weight' in name)
+                loss = ce
             scaler.scale(loss).backward()
             scaler.step(optimizer)
             scaler.update()
@@ -116,20 +124,22 @@ def train_hsi(HSI_train, HSI_test, y_train, y_test, args,
 
         # ---------------- 验证（mini-batch） ----------------
         model.eval()
-        correct = total = 0
+        val_correct = val_total = 0
         with torch.no_grad():
             for x, y in test_loader:
-                x, y = x.to(CUDA0, non_blocking=True), y.to(CUDA0, non_blocking=True)
-                out = model(x)
+                x, y = x.to(CUDA0, non_blocking=True), y.to(CUDA0, non_blocking=True, dtype=torch.long)
+                with autocast('cuda'):
+                    out = model(x).float()
                 preds = torch.argmax(out, dim=1)
-                correct += (preds == y).sum().item()
-                total += y.numel()
-        acc_dev = correct / total
+                val_correct += (preds == y).sum().item()
+                val_total += y.numel()
+        val_acc = val_correct / val_total
 
         if print_cost:
             print(f"epoch {epoch}: "
-                  f"Train_loss: {epoch_loss:.4f}, Val_loss: N/A, "
-                  f"Train_acc: {epoch_acc:.4f}, Val_acc: {acc_dev:.4f}  (correct={correct}, total={total})")
+                  f"Train_loss: {epoch_loss:.4f}, "
+                  f"Train_acc: {epoch_acc*100:.2f}%, Val_acc: {val_acc*100:.4f}%"
+                  f"  (correct={val_correct}, total={val_total})")
         torch.cuda.empty_cache()
 
     # ---------- 返回 ----------

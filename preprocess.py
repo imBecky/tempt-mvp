@@ -193,22 +193,22 @@ resnet50 = resnet50.to(CUDA0).eval()
 """
 # RGB_np = sio.loadmat('./RGB.mat')['data']   # RGB已经被编码好了
 # LiDAR_np = sio.loadmat('./LiDAR_interpolated.mat')['data']
-HSI_np = sio.loadmat('./HSI_interpolated.mat')['data']
+# HSI_np = sio.loadmat('./HSI_interpolated.mat')['data']
 # Encoded_LiDAR = Encode_3D(LiDAR_np)
 # sio.savemat('LiDAR.mat', {'data': Encoded_LiDAR})
-Encode_HSI(HSI_np)
+# Encode_HSI(HSI_np)
 
 """
 切割Train Test数据集
 """
 # RGB_full = sio.loadmat('./RGB.mat')['data']
 # LiDAR_full = sio.loadmat('./LiDAR.mat')['data']
-HSI_full = sio.loadmat('./HSI.mat')['data'].transpose(1, 2, 0)
-print()
+# HSI_full = sio.loadmat('./HSI.mat')['data'].transpose(1, 2, 0)
+# print()
 # label_full = sio.loadmat('./label.mat')['data']
 #
-train_size = int(0.7 * HSI_full.shape[0])
-test_size = int(0.3 * HSI_full.shape[0])
+# train_size = int(0.7 * HSI_full.shape[0])
+# test_size = int(0.3 * HSI_full.shape[0])
 # # RGB
 # train_np = RGB_full[:train_size, :]
 # test_np = RGB_full[train_size:, :]
@@ -220,10 +220,30 @@ test_size = int(0.3 * HSI_full.shape[0])
 # sio.savemat('LiDAR_TrSet.mat', {'data': train_np})
 # sio.savemat('LiDAR_TeSet.mat', {'data': test_np})
 # HSI
-train_np = HSI_full[:train_size, :, :]
-test_np = HSI_full[train_size:, :, :]
-sio.savemat('HSI_TrSet.mat', {'data': train_np})
-sio.savemat('HSI_TeSet.mat', {'data': test_np})
+# train_np = HSI_full[:train_size, :, :]
+# test_np = HSI_full[train_size:, :, :]
+# sio.savemat('HSI_TrSet.mat', {'data': train_np})
+# sio.savemat('HSI_TeSet.mat', {'data': test_np})
 # label
+
+"""
+裁剪出自己电脑适用的小数据集
+"""
+RGB_TrSet = sio.loadmat('./other data/RGB_TrSet.mat')['data'][:20, :]
+RGB_TeSet = sio.loadmat('./other data/RGB_TeSet.mat')['data'][:20, :]
+LiDAR_TrSet = sio.loadmat('./other data/LiDAR_TrSet.mat')['data'][:20, :]
+LiDAR_TeSet = sio.loadmat('./other data/LiDAR_TeSet.mat')['data'][:20, :]
+HSI_TrSet = sio.loadmat('./other data/HSI_TrSet.mat')['data'][:20, :, :]
+HSI_TeSet = sio.loadmat('./other data/HSI_TeSet.mat')['data'][:20, :, :]
+label_TrSet = sio.loadmat('./other data/label_TrSet.mat')['data'][:20, :, :]
+label_TeSet = sio.loadmat('./other data/label_TeSet.mat')['data'][:20, :, :]
+sio.savemat('./data/RGB_TrSet.mat', {'data': RGB_TrSet})
+sio.savemat('./data/RGB_TeSet.mat', {'data': RGB_TeSet})
+sio.savemat('./data/LiDAR_TrSet.mat', {'data': LiDAR_TrSet})
+sio.savemat('./data/LiDAR_TeSet.mat', {'data': LiDAR_TeSet})
+sio.savemat('./data/HSI_TrSet.mat', {'data': HSI_TrSet})
+sio.savemat('./data/HSI_TeSet.mat', {'data': HSI_TeSet})
+sio.savemat('./data/label_TrSet.mat', {'data': label_TrSet})
+sio.savemat('./data/label_TeSet.mat', {'data': label_TeSet})
 
 print()
