@@ -10,6 +10,9 @@ def get_argument_parse():
     parse.add_argument('--seed', type=int, default=1)
     parse.add_argument('--epoch', type=int, default=10)
     parse.add_argument('--log_dir', default='../tf-logs')
+    parse.add_argument('--n_class', default=21)
+    parse.add_argument('--use_amp', default=False)
+    parse.add_argument('--grad_accum', default=1)
     args = parse.parse_args()
     return args
 

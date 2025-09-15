@@ -1,0 +1,2 @@
+2025-09-15 14:49:35 | lr:0.0001 | seed:1 | epoch 0: | Train_loss: 2.5966, | Train_acc: 26.68%, Val_acc: 54.0936%(correct=542840, total=1003520)
+2025-09-15 14:50:54 | lr:0.0001 | seed:1 | epoch 0: | Train_loss: 2.7416, | Train_acc: 28.27%, Val_acc: 60.5068%(correct=607198, total=1003520)

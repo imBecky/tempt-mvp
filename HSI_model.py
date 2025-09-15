@@ -88,7 +88,7 @@ class SegmentModel(nn.Module):
         )
 
     def forward(self, HSI):
-        B, _, _ = HSI.shape
+        B = HSI.shape[0]
         h1 = checkpoint(self.group_encoder, HSI, use_reentrant=False)
         h2 = self.band_fuse(h1)
         output = self.seg_head(h2)
