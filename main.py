@@ -4,7 +4,7 @@ from config import args
 import os
 import scipy.io as sio
 # from train_monitor import train_hsi_monitor as train_hsi
-from tempt_HSI import train_hsi
+from HSI_model import train_hsi
 from MyModel import train
 import torch_utils as utils
 print(os.getcwd())
@@ -14,10 +14,10 @@ CUDA_LAUNCH_BLOCKING = 1
 
 
 if __name__ == "__main__":
-    # RGB_TrSet = sio.loadmat('./data/RGB_TrSet.mat')['data']
-    # RGB_TeSet = sio.loadmat('./data/RGB_TeSet.mat')['data']
-    # LiDAR_TrSet = sio.loadmat('./data/LiDAR_TrSet.mat')['data']
-    # LiDAR_TeSet = sio.loadmat('./data/LiDAR_TeSet.mat')['data']
+    RGB_TrSet = sio.loadmat('./data/RGB_TrSet.mat')['data']
+    RGB_TeSet = sio.loadmat('./data/RGB_TeSet.mat')['data']
+    LiDAR_TrSet = sio.loadmat('./data/LiDAR_TrSet.mat')['data']
+    LiDAR_TeSet = sio.loadmat('./data/LiDAR_TeSet.mat')['data']
     HSI_TrSet = sio.loadmat('./data/HSI_TrSet.mat')['data']
     HSI_TeSet = sio.loadmat('./data/HSI_TeSet.mat')['data']
     label_TrSet = sio.loadmat('./data/label_TrSet.mat')['data']
