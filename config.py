@@ -13,6 +13,7 @@ def get_argument_parse():
     parse.add_argument('--n_class', default=21)
     parse.add_argument('--use_amp', default=False)
     parse.add_argument('--grad_accum', default=1)
+    parse.add_argument('--n_samples', default=1, help='generate augmentation scale')
     args = parse.parse_args()
     return args
 
