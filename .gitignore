@@ -2,6 +2,7 @@
 *.img
 *.hdr
 *.img.enp
+*.txt
 .git
 .idea
 __pycache__

@@ -153,7 +153,7 @@ def train_rgb_lidar_hsi(RGB_train, LiDAR_train, HSI_train, y_train,
             rgb, lidar, hsi = [t.to(device, non_blocking=True) for t in x]
             y = y.to(device, non_blocking=True)
 
-            with autocast(enabled=args.use_amp):
+            with autocast('cuda', enabled=args.use_amp):
                 out = model(rgb, lidar, hsi)  # (B,K,224,224)
                 loss = loss_fn(out, y) / args.grad_accum
             scaler.scale(loss).backward()
@@ -176,7 +176,7 @@ def train_rgb_lidar_hsi(RGB_train, LiDAR_train, HSI_train, y_train,
             for x, y in test_loader:
                 rgb, lidar, hsi = [t.to(device, non_blocking=True) for t in x]
                 y = y.to(device, non_blocking=True)
-                with autocast(enabled=args.use_amp):
+                with autocast('cuda', enabled=args.use_amp):
                     out = model(rgb, lidar, hsi)
                 preds = torch.argmax(out, dim=1)
                 val_correct += (preds == y).sum().item()

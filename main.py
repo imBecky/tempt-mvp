@@ -3,7 +3,7 @@ import numpy as np
 from config import args
 import os
 import scipy.io as sio
-from tempt import train_rgb_lidar_hsi
+from Fusion import train_rgb_lidar_hsi
 from HSI_model import train_hsi
 from MyModel import train
 import torch_utils as utils
