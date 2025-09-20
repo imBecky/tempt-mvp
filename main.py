@@ -11,6 +11,7 @@ from RGB_LiDAR_Model import train
 import torch_utils as utils
 
 # print(os.getcwd())
+utils.set_seed(args.seed)
 
 CUDA0 = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 CUDA_LAUNCH_BLOCKING = 1
