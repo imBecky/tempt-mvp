@@ -192,7 +192,7 @@ def train_rgb_lidar_hsi(RGB_train, LiDAR_train, HSI_train, y_train,
                   f"train acc: {epoch_acc * 100:.2f}% | "
                   f"val acc: {val_acc * 100:.2f}%")
             log_args_and_time(args, epoch, epoch_loss, epoch_acc, val_acc,
-                              val_correct, val_total, log_file='./Trial1.txt')
+                              val_correct, val_total, log_file=args.log_file)
         torch.cuda.empty_cache()
 
     # ---------- 返回 ----------
